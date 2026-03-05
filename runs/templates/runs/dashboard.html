@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>我的运动数据中心</title>
+
+  <!-- Bootstrap 5 -->
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+
+  <style>
+    /* ── 全局 ── */
+    :root {
+      --accent: #5b8dee;
+      --accent-light: #c7d8fd;
+      --bg-dark: #0f1117;
+      --bg-card: #1a1d27;
+      --bg-card2: #1f2232;
+      --text-main: #e4e8f0;
+      --text-sub: #8892a4;
+      --border: rgba(255,255,255,.07);
+    }
+
+    body {
+      background: var(--bg-dark);
+      color: var(--text-main);
+      font-family: "Inter", "PingFang SC", "Microsoft YaHei", sans-serif;
+      min-height: 100vh;
+    }
+
+    /* ── 顶部导航栏 ── */
+    .topbar {
+      background: linear-gradient(135deg, #0f1117 0%, #1a1d27 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 1.1rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .topbar .logo-icon {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), #a78bfa);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+    }
+    .topbar h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin: 0;
+      background: linear-gradient(90deg, #fff 0%, var(--accent-light) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .topbar .subtitle {
+      font-size: .78rem;
+      color: var(--text-sub);
+      margin: 0;
+    }
+    .sync-badge {
+      margin-left: auto;
+      font-size: .72rem;
+      color: var(--text-sub);
+    }
+    .sync-badge .dot {
+      display: inline-block;
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #22c55e;
+      margin-right: 5px;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: .3; }
+    }
+
+    /* ── 统计卡片 ── */
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.4rem 1.6rem;
+      transition: transform .2s, box-shadow .2s;
+    }
+    .stat-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 32px rgba(91,141,238,.18);
+    }
+    .stat-card .icon-wrap {
+      width: 44px; height: 44px;
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem;
+      margin-bottom: .9rem;
+    }
+    .stat-card .value {
+      font-size: 2rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .stat-card .label {
+      font-size: .78rem;
+      color: var(--text-sub);
+      margin-top: .3rem;
+    }
+    .stat-card .trend {
+      font-size: .72rem;
+      margin-top: .5rem;
+    }
+
+    /* ── 图表卡片 ── */
+    .chart-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.6rem;
+    }
+    .chart-card .card-title {
+      font-size: .95rem;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 0;
+    }
+    .chart-card .card-sub {
+      font-size: .75rem;
+      color: var(--text-sub);
+    }
+    #distanceChart  { width: 100%; height: 360px; }
+    #heartRateChart { width: 100%; height: 280px; }
+    #durationChart  { width: 100%; height: 280px; }
+
+    /* ── 数据表格 ── */
+    .data-table-wrap {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .data-table-wrap .table-header {
+      padding: 1.2rem 1.6rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .table-dark-custom {
+      color: var(--text-main);
+      margin: 0;
+    }
+    .table-dark-custom thead th {
+      background: var(--bg-card2);
+      color: var(--text-sub);
+      font-size: .75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      border-color: var(--border);
+      padding: .85rem 1rem;
+    }
+    .table-dark-custom tbody td {
+      background: var(--bg-card);
+      border-color: var(--border);
+      font-size: .86rem;
+      padding: .85rem 1rem;
+      vertical-align: middle;
+    }
+    .table-dark-custom tbody tr:hover td {
+      background: var(--bg-card2);
+    }
+    .hr-badge {
+      display: inline-block;
+      padding: .15rem .55rem;
+      border-radius: 20px;
+      font-size: .75rem;
+      font-weight: 600;
+    }
+    .hr-low    { background: rgba(34,197,94,.15);  color: #22c55e; }
+    .hr-mid    { background: rgba(250,204,21,.15);  color: #facc15; }
+    .hr-high   { background: rgba(239,68,68,.15);   color: #ef4444; }
+    .hr-none   { background: rgba(148,163,184,.1);  color: #94a3b8; }
+
+    /* ── 页脚 ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 1.2rem 2rem;
+      color: var(--text-sub);
+      font-size: .75rem;
+    }
+  </style>
+</head>
+
+<body>
+
+<!-- ════════════════════════════════ 顶部导航 ════════════════════════════════ -->
+<header class="topbar">
+  <div class="logo-icon">🏃</div>
+  <div>
+    <h1>我的运动数据中心</h1>
+    <p class="subtitle">Powered by Strava API &amp; Django</p>
+  </div>
+  <div class="sync-badge">
+    <span class="dot"></span>数据实时同步中
+  </div>
+</header>
+
+<!-- ════════════════════════════════ 主体内容 ════════════════════════════════ -->
+<main class="container-fluid px-4 py-4">
+
+  <!-- ── 统计卡片行 ── -->
+  <div class="row g-3 mb-4">
+
+    <div class="col-6 col-md-3">
+      <div class="stat-card">
+        <div class="icon-wrap" style="background:rgba(91,141,238,.15);">
+          <i class="bi bi-activity" style="color:var(--accent);"></i>
+        </div>
+        <div class="value" style="color:var(--accent);">{{ total_runs }}</div>
+        <div class="label">累计跑步次数</div>
+        <div class="trend" style="color:#22c55e;"><i class="bi bi-arrow-up-short"></i> 全部历史</div>
+      </div>
+    </div>
+
+    <div class="col-6 col-md-3">
+      <div class="stat-card">
+        <div class="icon-wrap" style="background:rgba(168,85,247,.15);">
+          <i class="bi bi-map" style="color:#a855f7;"></i>
+        </div>
+        <div class="value" style="color:#a855f7;">{{ total_km }}</div>
+        <div class="label">近 30 次总里程 (km)</div>
+        <div class="trend" style="color:#22c55e;"><i class="bi bi-arrow-up-short"></i> 持续积累</div>
+      </div>
+    </div>
+
+    <div class="col-6 col-md-3">
+      <div class="stat-card">
+        <div class="icon-wrap" style="background:rgba(34,197,94,.15);">
+          <i class="bi bi-rulers" style="color:#22c55e;"></i>
+        </div>
+        <div class="value" style="color:#22c55e;">{{ avg_distance }}</div>
+        <div class="label">平均单次距离 (km)</div>
+        <div class="trend" style="color:#94a3b8;">近 30 次均值</div>
+      </div>
+    </div>
+
+    <div class="col-6 col-md-3">
+      <div class="stat-card">
+        <div class="icon-wrap" style="background:rgba(251,146,60,.15);">
+          <i class="bi bi-trophy" style="color:#fb923c;"></i>
+        </div>
+        <div class="value" style="color:#fb923c;">{{ best_distance }}</div>
+        <div class="label">最长单次距离 (km)</div>
+        <div class="trend" style="color:#94a3b8;">近 30 次最佳</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── 主图表：距离趋势折线 ── -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="chart-card">
+        <div class="d-flex align-items-start justify-content-between mb-3">
+          <div>
+            <div class="card-title">跑步距离趋势</div>
+            <div class="card-sub">近 30 次跑步 · 距离（公里）</div>
+          </div>
+          <span class="badge rounded-pill" style="background:rgba(91,141,238,.15);color:var(--accent);font-size:.72rem;">
+            最近 {{ runs|length }} 条
+          </span>
+        </div>
+        <div id="distanceChart"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 副图表行：心率 + 时长 ── -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-6">
+      <div class="chart-card h-100">
+        <div class="card-title mb-1">平均心率</div>
+        <div class="card-sub mb-3">每次跑步平均心率 (bpm)</div>
+        <div id="heartRateChart"></div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="chart-card h-100">
+        <div class="card-title mb-1">运动时长</div>
+        <div class="card-sub mb-3">每次跑步移动时间 (分钟)</div>
+        <div id="durationChart"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 数据明细表 ── -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="data-table-wrap">
+        <div class="table-header d-flex align-items-center justify-content-between">
+          <div>
+            <div class="card-title" style="font-size:.95rem;font-weight:600;">跑步记录明细</div>
+            <div class="card-sub" style="font-size:.75rem;color:var(--text-sub);">近 30 次详细数据</div>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-dark-custom table-borderless">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>活动名称</th>
+                <th>日期</th>
+                <th>距离 (km)</th>
+                <th>时长 (min)</th>
+                <th>均速 (km/h)</th>
+                <th>心率</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for run in runs %}
+              <tr>
+                <td style="color:var(--text-sub);">{{ forloop.counter }}</td>
+                <td style="font-weight:500;">{{ run.name }}</td>
+                <td style="color:var(--text-sub);">{{ run.date|date:"Y-m-d" }}</td>
+                <td>
+                  <span style="font-weight:700;color:var(--accent);">{{ run.distance_km|floatformat:2 }}</span>
+                </td>
+                <td>{{ run.moving_time_min|floatformat:1 }}</td>
+                <td style="color:#a855f7;">
+                  {% if run.moving_time_min > 0 %}
+                    {{ run.distance_km|floatformat:2 }}
+                    {# 计算均速需要模板标签，此处显示配速分钟/km #}
+                  {% else %}—{% endif %}
+                </td>
+                <td>
+                  {% if run.average_heart_rate %}
+                    {% if run.average_heart_rate < 140 %}
+                      <span class="hr-badge hr-low">{{ run.average_heart_rate|floatformat:0 }} bpm</span>
+                    {% elif run.average_heart_rate < 170 %}
+                      <span class="hr-badge hr-mid">{{ run.average_heart_rate|floatformat:0 }} bpm</span>
+                    {% else %}
+                      <span class="hr-badge hr-high">{{ run.average_heart_rate|floatformat:0 }} bpm</span>
+                    {% endif %}
+                  {% else %}
+                    <span class="hr-badge hr-none">无数据</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="7" class="text-center py-5" style="color:var(--text-sub);">
+                  <i class="bi bi-database-slash fs-2 d-block mb-2"></i>
+                  暂无数据，请先运行 <code>python manage.py sync_strava</code> 同步数据
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ════════════════════════════════ 页脚 ════════════════════════════════ -->
+<footer class="d-flex align-items-center justify-content-between">
+  <span>© 2026 · 跑步数据看板 · 数据来源于 Strava</span>
+  <span>Built with Django {{ django_version }} &amp; ECharts 5</span>
+</footer>
+
+<!-- ════════════════════════════════ Scripts ════════════════════════════════ -->
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Apache ECharts 5 -->
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+
+<script>
+  /* ── 从 Django 模板注入数据（已 JSON 序列化，安全） ── */
+  const DATES      = {{ dates_json|safe }};
+  const DISTANCES  = {{ distances_json|safe }};
+  const DURATIONS  = {{ durations_json|safe }};
+  const HEART_RATES = {{ heart_rates_json|safe }};
+
+  /* ── 通用配色 ── */
+  const COLOR_BLUE   = '#5b8dee';
+  const COLOR_PURPLE = '#a855f7';
+  const COLOR_GREEN  = '#22c55e';
+  const COLOR_ORANGE = '#fb923c';
+  const TEXT_SUB     = '#8892a4';
+  const BORDER_COLOR = 'rgba(255,255,255,0.07)';
+
+  /* ── 通用 tooltip / grid 配置 ── */
+  function baseGrid(top = 20) {
+    return { left: '3%', right: '3%', bottom: '12%', top, containLabel: true };
+  }
+  function baseTooltip(formatter) {
+    return {
+      trigger: 'axis',
+      backgroundColor: '#1f2232',
+      borderColor: 'rgba(255,255,255,.1)',
+      borderWidth: 1,
+      textStyle: { color: '#e4e8f0', fontSize: 12 },
+      formatter,
+    };
+  }
+  function baseXAxis() {
+    return {
+      type: 'category',
+      data: DATES,
+      axisLine:  { lineStyle: { color: BORDER_COLOR } },
+      axisLabel: { color: TEXT_SUB, fontSize: 11 },
+      axisTick:  { show: false },
+    };
+  }
+  function baseYAxis(name, color) {
+    return {
+      type: 'value',
+      name,
+      nameTextStyle: { color: TEXT_SUB, fontSize: 11 },
+      splitLine: { lineStyle: { color: BORDER_COLOR, type: 'dashed' } },
+      axisLabel: { color: TEXT_SUB, fontSize: 11 },
+      axisLine: { show: false },
+    };
+  }
+
+  /* ════════════════════════════════════════════════
+     图表一：距离趋势（带面积阴影的平滑折线）
+  ════════════════════════════════════════════════ */
+  (function renderDistance() {
+    const chart = echarts.init(document.getElementById('distanceChart'));
+    chart.setOption({
+      backgroundColor: 'transparent',
+      grid: baseGrid(30),
+      tooltip: baseTooltip(params => {
+        const p = params[0];
+        return `<div style="font-weight:600;margin-bottom:4px">${p.name}</div>`
+             + `<span style="color:${COLOR_BLUE}">● 距离：${p.value} km</span>`;
+      }),
+      xAxis: baseXAxis(),
+      yAxis: {
+        ...baseYAxis('km'),
+        min: value => Math.max(0, (value.min - 1).toFixed(1)),
+      },
+      series: [{
+        name: '距离',
+        type: 'line',
+        data: DISTANCES,
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 7,
+        lineStyle: { color: COLOR_BLUE, width: 3 },
+        itemStyle: {
+          color: COLOR_BLUE,
+          borderColor: '#fff',
+          borderWidth: 2,
+        },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0,   color: 'rgba(91,141,238,0.45)' },
+            { offset: 0.7, color: 'rgba(91,141,238,0.08)' },
+            { offset: 1,   color: 'rgba(91,141,238,0.00)' },
+          ]),
+        },
+        emphasis: {
+          itemStyle: { shadowBlur: 16, shadowColor: 'rgba(91,141,238,.6)' },
+        },
+        markPoint: {
+          symbol: 'pin',
+          symbolSize: 40,
+          label: { fontSize: 10 },
+          data: [
+            { type: 'max', name: '最远', itemStyle: { color: COLOR_ORANGE } },
+          ],
+        },
+        markLine: {
+          silent: true,
+          lineStyle: { color: COLOR_BLUE, type: 'dashed', opacity: .5 },
+          data: [{ type: 'average', name: '均值' }],
+          label: { formatter: 'avg: {c} km', color: TEXT_SUB, fontSize: 11 },
+        },
+      }],
+    });
+    window.addEventListener('resize', () => chart.resize());
+  })();
+
+  /* ════════════════════════════════════════════════
+     图表二：平均心率（柱状图，按心率区间上色）
+  ════════════════════════════════════════════════ */
+  (function renderHeartRate() {
+    const chart = echarts.init(document.getElementById('heartRateChart'));
+
+    // 根据心率值动态着色
+    const coloredData = HEART_RATES.map(v => ({
+      value: v || null,
+      itemStyle: {
+        color: v === 0   ? 'rgba(148,163,184,.2)'
+             : v < 140   ? '#22c55e'
+             : v < 170   ? '#facc15'
+             :              '#ef4444',
+      },
+    }));
+
+    chart.setOption({
+      backgroundColor: 'transparent',
+      grid: baseGrid(16),
+      tooltip: baseTooltip(params => {
+        const p = params[0];
+        const v = p.value;
+        return `<div style="font-weight:600;margin-bottom:4px">${p.name}</div>`
+             + (v ? `<span>● 心率：${v} bpm</span>` : '<span style="color:#94a3b8">无心率数据</span>');
+      }),
+      xAxis: { ...baseXAxis() },
+      yAxis: baseYAxis('bpm'),
+      series: [{
+        type: 'bar',
+        data: coloredData,
+        barMaxWidth: 18,
+        borderRadius: [4, 4, 0, 0],
+      }],
+    });
+    window.addEventListener('resize', () => chart.resize());
+  })();
+
+  /* ════════════════════════════════════════════════
+     图表三：运动时长（渐变填充柱状图）
+  ════════════════════════════════════════════════ */
+  (function renderDuration() {
+    const chart = echarts.init(document.getElementById('durationChart'));
+    chart.setOption({
+      backgroundColor: 'transparent',
+      grid: baseGrid(16),
+      tooltip: baseTooltip(params => {
+        const p = params[0];
+        return `<div style="font-weight:600;margin-bottom:4px">${p.name}</div>`
+             + `<span style="color:${COLOR_PURPLE}">● 时长：${p.value} 分钟</span>`;
+      }),
+      xAxis: { ...baseXAxis() },
+      yAxis: baseYAxis('分钟'),
+      series: [{
+        type: 'bar',
+        data: DURATIONS,
+        barMaxWidth: 18,
+        borderRadius: [4, 4, 0, 0],
+        itemStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: '#a855f7' },
+            { offset: 1, color: 'rgba(168,85,247,.2)' },
+          ]),
+        },
+        emphasis: {
+          itemStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: '#c084fc' },
+              { offset: 1, color: 'rgba(192,132,252,.3)' },
+            ]),
+          },
+        },
+      }],
+    });
+    window.addEventListener('resize', () => chart.resize());
+  })();
+</script>
+
+</body>
+</html>
