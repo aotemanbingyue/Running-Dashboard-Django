@@ -2,6 +2,8 @@
 
 本项目是一个基于 **Django + Strava API + ECharts** 的个人跑步数据看板，用于**自动聚合第三方运动平台（Strava）的跑步数据，并以现代数据大屏的形式进行可视化分析和历史复盘**。
 
+![项目展示](dashboard.png)
+
 - **核心技术栈**
   - **后端框架**：Django（ORM、管理命令、模板系统）
   - **第三方 API**：Strava REST API（OAuth 2.0 授权、运动数据获取）
