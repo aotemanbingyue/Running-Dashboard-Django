@@ -6,4 +6,5 @@ app_name = "runs"
 
 urlpatterns = [
     path("", views.dashboard_view, name="dashboard"),
+    path("sync/", views.sync_strava_view, name="sync"),
 ]

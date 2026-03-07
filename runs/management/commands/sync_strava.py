@@ -2,23 +2,27 @@
 runs/management/commands/sync_strava.py
 
 Django Management Command：同步 Strava 跑步数据到本地数据库。
+支持使用 refresh_token 自动续期 access_token，便于定时任务无人值守运行。
 
 用法：
     # 首次运行（需要完整 OAuth 授权流程）
     python manage.py sync_strava
 
-    # 已有 access_token 时，直接传入跳过授权步骤
-    python manage.py sync_strava --access-token <your_token>
+    # 已有 access_token / refresh_token 时由 .env 读取，过期会自动续期
+    python manage.py sync_strava --count 30
 
     # 指定同步条数（默认 5）
     python manage.py sync_strava --count 10
 """
 
 import os
-import sys
+import re
+import time
+from pathlib import Path
 from urllib.parse import urlencode, urlparse, parse_qs
 
 import requests
+from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.utils.dateparse import parse_datetime
 
@@ -27,6 +31,8 @@ from runs.models import RunActivity
 # ── Strava 常量 ──────────────────────────────────────
 BASE_URL = "https://www.strava.com"
 REDIRECT_URI = "http://localhost"
+# 提前 5 分钟视为过期，避免请求途中失效
+TOKEN_EXPIRE_BUFFER_SECONDS = 300
 
 
 # ── 工具函数（与 strava_sync.py 保持一致，但错误使用 raise 而非 sys.exit）─────
@@ -82,6 +88,80 @@ def _exchange_token(client_id: str, client_secret: str, code: str) -> dict:
     if "access_token" not in token_data:
         raise CommandError(f"授权失败，Strava 返回：{token_data}")
     return token_data
+
+
+def _refresh_token(client_id: str, client_secret: str, refresh_token: str) -> dict:
+    """使用 refresh_token 向 Strava 换取新的 access_token（含 expires_at）。"""
+    try:
+        resp = requests.post(
+            f"{BASE_URL}/oauth/token",
+            data={
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "refresh_token": refresh_token,
+                "grant_type": "refresh_token",
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+    except requests.exceptions.ConnectionError:
+        raise CommandError("刷新令牌时网络连接失败，请检查网络或代理。")
+    except requests.exceptions.Timeout:
+        raise CommandError("刷新令牌请求超时，请稍后重试。")
+    except requests.exceptions.HTTPError:
+        raise CommandError(
+            f"刷新令牌失败（HTTP {resp.status_code}）：{resp.text}。"
+            "若长期未用，请重新运行 python manage.py sync_strava 完成授权。"
+        )
+
+    data = resp.json()
+    if "access_token" not in data:
+        raise CommandError(f"刷新令牌失败，Strava 返回：{data}")
+    return data
+
+
+def _update_env_tokens(access_token: str, refresh_token: str, expires_at: int) -> None:
+    """将新的 Token 写回项目根目录的 .env，便于下次运行或定时任务使用。"""
+    base_dir = getattr(
+        settings, "BASE_DIR", Path(__file__).resolve().parent.parent.parent.parent
+    )
+    env_path = base_dir / ".env"
+    if not env_path.exists():
+        return
+    try:
+        text = env_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return
+    lines = []
+    replaced = {
+        "STRAVA_ACCESS_TOKEN": False,
+        "STRAVA_REFRESH_TOKEN": False,
+        "STRAVA_EXPIRES_AT": False,
+    }
+    for line in text.splitlines():
+        if re.match(r"^\s*STRAVA_ACCESS_TOKEN\s*=", line):
+            lines.append(f"STRAVA_ACCESS_TOKEN={access_token}")
+            replaced["STRAVA_ACCESS_TOKEN"] = True
+        elif re.match(r"^\s*STRAVA_REFRESH_TOKEN\s*=", line):
+            lines.append(f"STRAVA_REFRESH_TOKEN={refresh_token}")
+            replaced["STRAVA_REFRESH_TOKEN"] = True
+        elif re.match(r"^\s*STRAVA_EXPIRES_AT\s*=", line):
+            lines.append(f"STRAVA_EXPIRES_AT={expires_at}")
+            replaced["STRAVA_EXPIRES_AT"] = True
+        else:
+            lines.append(line)
+    for key, done in replaced.items():
+        if not done:
+            if key == "STRAVA_ACCESS_TOKEN":
+                lines.append(f"STRAVA_ACCESS_TOKEN={access_token}")
+            elif key == "STRAVA_REFRESH_TOKEN":
+                lines.append(f"STRAVA_REFRESH_TOKEN={refresh_token}")
+            else:
+                lines.append(f"STRAVA_EXPIRES_AT={expires_at}")
+    try:
+        env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except OSError:
+        pass
 
 
 def _fetch_runs(access_token: str, count: int) -> list:
@@ -183,10 +263,15 @@ class Command(BaseCommand):
 
         access_token: str = options["access_token"] or os.getenv(
             "STRAVA_ACCESS_TOKEN", ""
-        )
+        ).strip()
         count: int = options["count"]
+        refresh_token = os.getenv("STRAVA_REFRESH_TOKEN", "").strip()
+        try:
+            expires_at = int(os.getenv("STRAVA_EXPIRES_AT", "0") or "0")
+        except (TypeError, ValueError):
+            expires_at = 0
 
-        # ── 若没有现成 Token，执行 OAuth 交互流程 ─────
+        # ── 无 access_token 时执行完整 OAuth 授权 ─────
         if not access_token:
             self.stdout.write("\n" + "=" * 55)
             self.stdout.write("  Strava 数据同步（Django Command）")
@@ -211,14 +296,30 @@ class Command(BaseCommand):
             access_token = token_data["access_token"]
             refresh_token = token_data.get("refresh_token", "")
             athlete_name = token_data.get("athlete", {}).get("firstname", "用户")
-
+            expires_at = token_data.get("expires_at") or 0
+            if refresh_token and expires_at:
+                _update_env_tokens(access_token, refresh_token, expires_at)
+                self.stdout.write(self.style.SUCCESS("已自动将 Token 写入 .env，支持定时任务与网页端更新。"))
             self.stdout.write(self.style.SUCCESS(f"✅ 授权成功！欢迎，{athlete_name}！"))
             self.stdout.write(
-                "\n💡 将以下两行写入 .env，下次运行无需重复授权：\n"
+                "\n💡 将以下内容写入 .env 后，可支持自动续期与定时任务：\n"
                 f"   STRAVA_ACCESS_TOKEN={access_token}\n"
                 f"   STRAVA_REFRESH_TOKEN={refresh_token}\n"
+                f"   STRAVA_EXPIRES_AT={expires_at}\n"
             )
         else:
+            # 有 access_token 时，若已过期则用 refresh_token 自动续期
+            if refresh_token and (
+                expires_at <= 0
+                or time.time() >= expires_at - TOKEN_EXPIRE_BUFFER_SECONDS
+            ):
+                self.stdout.write("检测到 access_token 已过期或即将过期，正在使用 refresh_token 续期...")
+                token_data = _refresh_token(client_id, client_secret, refresh_token)
+                access_token = token_data["access_token"]
+                refresh_token = token_data.get("refresh_token", refresh_token)
+                expires_at = token_data.get("expires_at", 0)
+                _update_env_tokens(access_token, refresh_token, expires_at)
+                self.stdout.write(self.style.SUCCESS("✅ 令牌已续期并写回 .env。"))
             self.stdout.write(
                 self.style.SUCCESS(
                     f"✅ 已使用现有 access_token（{access_token[:12]}...）"

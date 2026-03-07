@@ -325,11 +325,12 @@ python manage.py sync_strava
 
 **后续同步（已有 Token，可跳过授权）：**
 
-将从上一步获得的 Token 写入 `.env`：
+将从上一步获得的 Token 写入 `.env`（建议同时写入 `STRAVA_EXPIRES_AT`，便于自动续期）：
 
 ```env
 STRAVA_ACCESS_TOKEN=...
 STRAVA_REFRESH_TOKEN=...
+STRAVA_EXPIRES_AT=...
 ```
 
 然后直接执行：
@@ -338,7 +339,11 @@ STRAVA_REFRESH_TOKEN=...
 python manage.py sync_strava --count 30
 ```
 
-命令会幂等地更新数据库记录（基于 `strava_id`）。
+命令会幂等地更新数据库记录（基于 `strava_id`）。**重要**：Strava 的 `access_token` 约 6 小时过期，本脚本已实现使用 `refresh_token` 自动续期逻辑——若在 `.env` 中配置了 `STRAVA_REFRESH_TOKEN` 与 `STRAVA_EXPIRES_AT`，在 token 过期或即将过期时会自动向 Strava 换取新 token 并写回 `.env`，无需人工重新授权。
+
+**网页端一键更新（推荐）：**
+
+若已在 `.env` 中配置了 `STRAVA_ACCESS_TOKEN`（即至少执行过一次上述终端同步并保存了 Token），则可在看板页面点击右上角 **「更新数据」** 按钮，从 Strava 拉取最近 30 条跑步记录并写回数据库，无需再打开终端。同步完成后会自动刷新当前页并展示最新数据与成功/失败提示。若未配置 Token 或 Token 已过期，页面会提示先通过终端执行 `python manage.py sync_strava` 完成授权并将新 Token 写入 `.env`。
 
 ### **5.6 启动 Web 服务并访问看板**
 
@@ -348,5 +353,17 @@ python manage.py sync_strava --count 30
 python manage.py runserver 8000
 ```
 
-浏览器访问 `http://127.0.0.1:8000/` 即可看到完整的跑步数据看板。
+浏览器访问 `http://127.0.0.1:8000/` 即可看到完整的跑步数据看板。有新跑步记录时，点击页面右上角 **「更新数据」** 即可从 Strava 拉取最新数据并刷新看板。
+
+### **5.7 全自动同步：设置定时任务（进阶）**
+
+若希望完全解放双手，让系统在每天固定时间自动从 Strava 拉取最新跑步数据，可使用系统自带的定时任务：
+
+**Windows（任务计划程序）：**
+
+1. 打开「任务计划程序」→ 创建基本任务，设置名称（如「Strava 跑步数据同步」）、触发器为「每天」、执行时间（如每天凌晨 6:00）。
+2. 操作选择「启动程序」；程序或脚本填写本机 `python.exe` 的完整路径（如 `C:\Users\你的用户名\AppData\Local\Programs\Python\Python311\python.exe`）；添加参数填写 `manage.py sync_strava --count 30`；起始于填写项目根目录（即包含 `manage.py` 的目录，如 `D:\SoftWare\Code\跑步数据监测`）。
+3. 保存后，每天到点会自动执行 `python manage.py sync_strava --count 30`，无需再手动运行代码或打开网页。
+
+**注意**：因 Strava 的 `access_token` 会过期（约 6 小时），脚本**已实现**利用 `refresh_token` 自动续期：只要在 `.env` 中配置了 `STRAVA_REFRESH_TOKEN` 与 `STRAVA_EXPIRES_AT`（首次授权后命令会提示写入），定时任务在无人工干预下即可长期自动同步。若长期未授权或 refresh 失败，再在终端执行一次 `python manage.py sync_strava` 重新授权即可。
 

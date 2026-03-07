@@ -66,6 +66,19 @@
       font-size: .72rem;
       color: var(--text-sub);
     }
+    .sync-badge .sync-btn {
+      border-color: var(--accent);
+      color: var(--accent);
+      font-size: .8rem;
+    }
+    .sync-badge .sync-btn:hover {
+      background: rgba(91,141,238,.15);
+      color: var(--accent-light);
+      border-color: var(--accent);
+    }
+    .sync-badge .sync-btn:disabled {
+      opacity: .8;
+    }
     .sync-badge .dot {
       display: inline-block;
       width: 7px; height: 7px;
@@ -200,13 +213,32 @@
     <h1>我的运动数据中心</h1>
     <p class="subtitle">Powered by Strava API &amp; Django</p>
   </div>
-  <div class="sync-badge">
-    <span class="dot"></span>数据实时同步中
+  <div class="sync-badge d-flex align-items-center gap-2">
+    <form action="{% url 'runs:sync' %}" method="post" class="d-inline" id="syncForm">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-sm btn-outline-primary sync-btn" id="syncBtn">
+        <i class="bi bi-cloud-arrow-down"></i> 更新数据
+      </button>
+    </form>
+    <span class="text-secondary" style="font-size:.72rem;">点击从 Strava 拉取最新跑步记录</span>
   </div>
 </header>
 
 <!-- ════════════════════════════════ 主体内容 ════════════════════════════════ -->
 <main class="container-fluid px-4 py-4">
+
+  {% if messages %}
+  <div class="row mb-3">
+    <div class="col-12">
+      {% for message in messages %}
+      <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="关闭"></button>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
 
   <!-- ── 统计卡片行 ── -->
   <div class="row g-3 mb-4">
@@ -374,6 +406,16 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <!-- Apache ECharts 5 -->
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+
+<script>
+  document.getElementById('syncForm')?.addEventListener('submit', function () {
+    var btn = document.getElementById('syncBtn');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> 同步中...';
+    }
+  });
+</script>
 
 <script>
   /* ── 从 Django 模板注入数据（已 JSON 序列化，安全） ── */

@@ -1,6 +1,11 @@
 import json
+import os
+from io import StringIO
 
-from django.shortcuts import render
+from django.contrib import messages
+from django.core.management import call_command
+from django.core.management.base import CommandError
+from django.shortcuts import redirect, render
 
 from .models import RunActivity
 
@@ -43,3 +48,49 @@ def dashboard_view(request):
         "heart_rates_json": json.dumps(heart_rates),
     }
     return render(request, "runs/dashboard.html", context)
+
+
+def sync_strava_view(request):
+    """
+    看板页触发的「更新数据」接口。
+    仅接受 POST，使用 .env 中的 STRAVA_ACCESS_TOKEN 调用 sync_strava 逻辑，
+    同步最近 30 条跑步数据后重定向回看板并展示结果消息。
+    """
+    if request.method != "POST":
+        return redirect("runs:dashboard")
+
+    token = os.getenv("STRAVA_ACCESS_TOKEN", "").strip()
+    if not token:
+        messages.warning(
+            request,
+            "尚未配置 STRAVA_ACCESS_TOKEN，无法在网页端同步。请先在终端运行 "
+            "python manage.py sync_strava 完成授权，并将返回的 Token 写入 .env 后再使用「更新数据」按钮。",
+        )
+        return redirect("runs:dashboard")
+
+    out = StringIO()
+    err = StringIO()
+    try:
+        call_command(
+            "sync_strava",
+            "--access-token",
+            token,
+            "--count",
+            "30",
+            stdout=out,
+            stderr=err,
+        )
+        summary = (out.getvalue() + " " + err.getvalue()).strip()
+        if "同步完成" in summary or "新增" in summary or "更新" in summary:
+            messages.success(request, "Strava 数据已更新，看板已刷新。")
+        else:
+            messages.success(request, "同步已执行完成。")
+    except CommandError as e:
+        messages.error(request, f"同步失败：{str(e)}")
+    except Exception as e:
+        messages.error(
+            request,
+            f"同步失败：{str(e)}。请检查网络或 .env 中的 Token 是否过期，必要时重新运行 python manage.py sync_strava 获取新 Token。",
+        )
+
+    return redirect("runs:dashboard")
