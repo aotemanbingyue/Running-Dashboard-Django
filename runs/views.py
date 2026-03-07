@@ -26,8 +26,11 @@ def dashboard_view(request):
     distances = [round(run.distance_km, 2) for run in recent_runs]
     # 额外数据：移动时间（分钟），用于 Tooltip 展示
     durations = [round(run.moving_time_min, 1) for run in recent_runs]
-    # 额外数据：平均心率
-    heart_rates = [run.average_heart_rate or 0 for run in recent_runs]
+    # 平均心率：有则用原值，无则传 None，便于前端折线断点与 JSON 序列化
+    heart_rates = [
+        round(run.average_heart_rate, 1) if run.average_heart_rate is not None else None
+        for run in recent_runs
+    ]
 
     # 汇总统计卡片数据
     total_runs = RunActivity.objects.count()

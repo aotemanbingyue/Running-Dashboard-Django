@@ -289,14 +289,14 @@
 
   </div>
 
-  <!-- ── 主图表：距离趋势折线 ── -->
+  <!-- ── 主图表：距离 + 心率 双 Y 轴 ── -->
   <div class="row mb-4">
     <div class="col-12">
       <div class="chart-card">
         <div class="d-flex align-items-start justify-content-between mb-3">
           <div>
-            <div class="card-title">跑步距离趋势</div>
-            <div class="card-sub">近 30 次跑步 · 距离（公里）</div>
+            <div class="card-title">跑步距离与平均心率</div>
+            <div class="card-sub">近 30 次 · 左轴距离 (km) / 右轴心率 (bpm)</div>
           </div>
           <span class="badge rounded-pill" style="background:rgba(91,141,238,.15);color:var(--accent);font-size:.72rem;">
             最近 {{ runs|length }} 条
@@ -467,61 +467,107 @@
   }
 
   /* ════════════════════════════════════════════════
-     图表一：距离趋势（带面积阴影的平滑折线）
+     图表一：距离 + 心率 双 Y 轴（左距离 / 右心率）
   ════════════════════════════════════════════════ */
+  const COLOR_HR = '#ff4d4f';
   (function renderDistance() {
     const chart = echarts.init(document.getElementById('distanceChart'));
     chart.setOption({
       backgroundColor: 'transparent',
       grid: baseGrid(30),
-      tooltip: baseTooltip(params => {
-        const p = params[0];
-        return `<div style="font-weight:600;margin-bottom:4px">${p.name}</div>`
-             + `<span style="color:${COLOR_BLUE}">● 距离：${p.value} km</span>`;
+      tooltip: baseTooltip(function (params) {
+        const name = params[0].name;
+        const dist = params[0].value;
+        const hrItem = params.find(function (p) { return p.seriesName === '平均心率'; });
+        const hr = hrItem != null ? hrItem.value : null;
+        const hrText = (hr != null && hr !== '' && hr !== undefined) ? (hr + ' bpm') : '无数据';
+        return '<div style="font-weight:600;margin-bottom:6px">' + name + '</div>'
+             + '<div style="color:' + COLOR_BLUE + '">● 距离：' + dist + ' km</div>'
+             + '<div style="color:' + COLOR_HR + '">● 平均心率：' + hrText + '</div>';
       }),
       xAxis: baseXAxis(),
-      yAxis: {
-        ...baseYAxis('km'),
-        min: value => Math.max(0, (value.min - 1).toFixed(1)),
-      },
-      series: [{
-        name: '距离',
-        type: 'line',
-        data: DISTANCES,
-        smooth: true,
-        symbol: 'circle',
-        symbolSize: 7,
-        lineStyle: { color: COLOR_BLUE, width: 3 },
-        itemStyle: {
-          color: COLOR_BLUE,
-          borderColor: '#fff',
-          borderWidth: 2,
+      yAxis: [
+        {
+          type: 'value',
+          name: '距离 (km)',
+          position: 'left',
+          nameTextStyle: { color: TEXT_SUB, fontSize: 11 },
+          splitLine: { lineStyle: { color: BORDER_COLOR, type: 'dashed' } },
+          axisLabel: { color: TEXT_SUB, fontSize: 11 },
+          axisLine: { show: false },
+          min: function (value) { return Math.max(0, (value.min - 1).toFixed(1)); },
         },
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0,   color: 'rgba(91,141,238,0.45)' },
-            { offset: 0.7, color: 'rgba(91,141,238,0.08)' },
-            { offset: 1,   color: 'rgba(91,141,238,0.00)' },
-          ]),
+        {
+          type: 'value',
+          name: '心率 (bpm)',
+          position: 'right',
+          nameTextStyle: { color: TEXT_SUB, fontSize: 11 },
+          splitLine: { show: false },
+          axisLabel: { color: TEXT_SUB, fontSize: 11 },
+          axisLine: { show: false },
+          scale: true,
+          min: 0,
         },
-        emphasis: {
-          itemStyle: { shadowBlur: 16, shadowColor: 'rgba(91,141,238,.6)' },
+      ],
+      series: [
+        {
+          name: '距离',
+          type: 'line',
+          yAxisIndex: 0,
+          data: DISTANCES,
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: 7,
+          lineStyle: { color: COLOR_BLUE, width: 3 },
+          itemStyle: {
+            color: COLOR_BLUE,
+            borderColor: '#fff',
+            borderWidth: 2,
+          },
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0,   color: 'rgba(91,141,238,0.45)' },
+              { offset: 0.7, color: 'rgba(91,141,238,0.08)' },
+              { offset: 1,   color: 'rgba(91,141,238,0.00)' },
+            ]),
+          },
+          emphasis: {
+            itemStyle: { shadowBlur: 16, shadowColor: 'rgba(91,141,238,.6)' },
+          },
+          markPoint: {
+            symbol: 'pin',
+            symbolSize: 40,
+            label: { fontSize: 10 },
+            data: [
+              { type: 'max', name: '最远', itemStyle: { color: COLOR_ORANGE } },
+            ],
+          },
+          markLine: {
+            silent: true,
+            lineStyle: { color: COLOR_BLUE, type: 'dashed', opacity: .5 },
+            data: [{ type: 'average', name: '均值' }],
+            label: { formatter: 'avg: {c} km', color: TEXT_SUB, fontSize: 11 },
+          },
         },
-        markPoint: {
-          symbol: 'pin',
-          symbolSize: 40,
-          label: { fontSize: 10 },
-          data: [
-            { type: 'max', name: '最远', itemStyle: { color: COLOR_ORANGE } },
-          ],
+        {
+          name: '平均心率',
+          type: 'line',
+          yAxisIndex: 1,
+          data: HEART_RATES,
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: 5,
+          lineStyle: { color: COLOR_HR, width: 2, type: 'dashed' },
+          itemStyle: {
+            color: COLOR_HR,
+            borderColor: 'rgba(255,255,255,.5)',
+            borderWidth: 1,
+          },
+          emphasis: {
+            itemStyle: { shadowBlur: 10, shadowColor: 'rgba(255,77,79,.5)' },
+          },
         },
-        markLine: {
-          silent: true,
-          lineStyle: { color: COLOR_BLUE, type: 'dashed', opacity: .5 },
-          data: [{ type: 'average', name: '均值' }],
-          label: { formatter: 'avg: {c} km', color: TEXT_SUB, fontSize: 11 },
-        },
-      }],
+      ],
     });
     window.addEventListener('resize', () => chart.resize());
   })();
@@ -532,14 +578,15 @@
   (function renderHeartRate() {
     const chart = echarts.init(document.getElementById('heartRateChart'));
 
-    // 根据心率值动态着色
+    // 根据心率值动态着色（null/0 为无数据）
     const coloredData = HEART_RATES.map(v => ({
-      value: v || null,
+      value: v != null ? v : null,
       itemStyle: {
-        color: v === 0   ? 'rgba(148,163,184,.2)'
-             : v < 140   ? '#22c55e'
-             : v < 170   ? '#facc15'
-             :              '#ef4444',
+        color: (v == null || v === '' || v === 0)
+          ? 'rgba(148,163,184,.2)'
+          : v < 140 ? '#22c55e'
+          : v < 170 ? '#facc15'
+          : '#ef4444',
       },
     }));
 
